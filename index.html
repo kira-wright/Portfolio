@@ -1,436 +1,392 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="mobile-web-app-capable" content="yes">
-<title>Game Show Counter</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&display=swap" rel="stylesheet">
-
-<style>
-  :root{
-    --bg:#0a0c10;
-    --panel:#14171d;
-    --panel-2:#1b1f27;
-    --line:rgba(255,255,255,0.08);
-    --ink:#f2f4f6;
-    --ink-dim:#808893;
-    --c1:#e8b23d;
-    --c2:#3da0e8;
-    --c3:#e8437b;
-    --danger:#e85555;
-  }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{
-    margin:0; padding:0; height:100%;
-    background:var(--bg); color:var(--ink);
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-    overflow:hidden; user-select:none;
-  }
-  .display-font{ font-family:'Oswald',sans-serif; }
-  #app{ position:fixed; inset:0; padding-bottom:env(safe-area-inset-bottom); }
-  .screen{ position:absolute; inset:0; display:none; }
-  .screen.active{ display:flex; }
-
-  /* ---------- Role picker ---------- */
-  #screen-role{
-    flex-direction:column; align-items:center; justify-content:center;
-    gap:28px; padding:24px; text-align:center;
-  }
-  #screen-role .kicker{ color:var(--ink-dim); letter-spacing:.18em; font-size:12px; text-transform:uppercase; }
-  #screen-role h1{
-    font-family:'Oswald',sans-serif; font-weight:700; font-size:28px; margin:0 0 6px;
-    letter-spacing:.02em; text-transform:uppercase;
-  }
-  .role-grid{ display:flex; gap:14px; flex-wrap:wrap; justify-content:center; max-width:520px; }
-  .role-btn{
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    width:150px; height:110px; border-radius:14px; border:1px solid var(--line);
-    background:var(--panel); color:var(--ink); font-size:15px; gap:8px;
-    cursor:pointer;
-  }
-  .role-btn .dot{ width:22px; height:22px; border-radius:50%; }
-  .role-btn.scorekeeper{ width:100%; max-width:520px; height:64px; flex-direction:row; }
-
-  /* ---------- Display (per contestant iPad) ---------- */
-  #screen-display{
-    flex-direction:column; align-items:center; justify-content:center;
-    text-align:center;
-  }
-  #d-name{
-    font-family:'Oswald',sans-serif; font-weight:500; letter-spacing:.24em;
-    text-transform:uppercase; font-size:clamp(20px,3.4vw,36px); color:rgba(255,255,255,0.75);
-    margin-bottom:0.5vh; text-shadow:0 2px 12px rgba(0,0,0,0.25);
-  }
-  #d-score{
-    font-family:'Oswald',sans-serif; font-weight:700; color:#ffffff;
-    line-height:0.95; white-space:nowrap;
-    font-variant-numeric:tabular-nums; letter-spacing:.01em;
-    transition:transform .18s ease;
-  }
-  #d-score.pulse{ transform:scale(1.05); }
-  #d-connecting{ color:rgba(255,255,255,0.75); font-size:14px; margin-top:18px; letter-spacing:.08em; text-transform:uppercase; }
-
-  .corner-tap{
-    position:absolute; top:0; right:0; width:56px; height:56px;
-    display:flex; align-items:flex-start; justify-content:flex-end;
-    padding:14px; color:rgba(255,255,255,0.18); font-size:20px; cursor:pointer;
-  }
-
-  /* ---------- Controller (scorekeeper phone) ---------- */
-  #screen-controller{
-    flex-direction:column; height:100%; width:100%;
-    padding:16px 16px 24px; gap:12px; overflow-y:auto;
-  }
-  #ctl-header{ display:flex; align-items:center; justify-content:space-between; padding:4px 4px 0; }
-  #ctl-header .kicker{ color:var(--ink-dim); letter-spacing:.18em; font-size:11px; text-transform:uppercase; }
-  .panel{
-    background:var(--panel); border:1px solid var(--line); border-radius:16px;
-    padding:14px 16px; display:flex; flex-direction:column; gap:10px; flex-shrink:0;
-  }
-  .panel-top{ display:flex; align-items:center; gap:10px; }
-  .swatch{ width:20px; height:20px; border-radius:50%; flex-shrink:0; border:1px solid rgba(255,255,255,0.25); }
-  .name-input{
-    flex:1; background:transparent; border:none; color:var(--ink); font-size:15px;
-    font-family:inherit; font-weight:600; padding:4px 0; min-width:0;
-  }
-  .hex-input{
-    width:78px; background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
-    color:var(--ink-dim); font-size:12px; padding:6px 8px; font-family:monospace; text-align:center;
-  }
-  .score-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
-  .score-num{
-    font-family:'Oswald',sans-serif; font-weight:700; font-size:44px;
-    font-variant-numeric:tabular-nums; min-width:90px;
-  }
-  .btn-row{ display:flex; gap:8px; }
-  .step-btn{
-    width:52px; height:52px; border-radius:12px; border:1px solid var(--line);
-    background:var(--panel-2); color:var(--ink); font-size:24px; font-weight:700;
-    display:flex; align-items:center; justify-content:center; cursor:pointer;
-  }
-  .step-btn:active{ transform:scale(0.94); }
-  .custom-row{ display:flex; gap:8px; align-items:center; }
-  .custom-input{
-    flex:1; background:var(--panel-2); border:1px solid var(--line); border-radius:10px;
-    color:var(--ink); font-size:16px; padding:10px 12px; font-family:inherit;
-    font-variant-numeric:tabular-nums;
-  }
-  .custom-add-btn{
-    background:var(--panel-2); border:1px solid var(--line); border-radius:10px;
-    color:var(--ink); font-size:14px; font-weight:600; padding:10px 16px; cursor:pointer;
-    letter-spacing:.02em; white-space:nowrap;
-  }
-  .custom-add-btn:active{ transform:scale(0.96); }
-  #reset-all{
-    margin-top:4px; background:transparent; border:1px solid rgba(232,85,85,0.4);
-    color:var(--danger); border-radius:12px; padding:12px; font-size:14px;
-    letter-spacing:.04em; text-transform:uppercase; cursor:pointer;
-  }
-  .role-change{
-    text-align:center; color:var(--ink-dim); font-size:12px; padding:6px; cursor:pointer;
-  }
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Kira Wright &mdash; Media Production Manager</title><link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNiIgZmlsbD0iIzJDMUEwRSIvPjx0ZXh0IHg9IjE2IiB5PSIyMiIgZm9udC1mYW1pbHk9Ikdlb3JnaWEsc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IiNmZmZmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPktXPC90ZXh0Pjwvc3ZnPg==">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+<style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden}:root{--bg:#FFFFFF;--surface:#FDF3EB;--border:#F0CFAB;--ink:#12142B;--ink2:#3D4266;--ink3:#8A90B0;--accent:#C45E0A;--accent2:#E07830;--gold:#D4920A;--green:#1A9B6C;--archived:#5A6080;--sidebar-bg:#2C1A0E;--sidebar:230px;--ffd:'Playfair Display',Georgia,serif;--ffb:'Lato',sans-serif;}body{background:var(--bg);color:var(--ink);font-family:var(--ffb);font-size:16px;line-height:1.7;display:flex}#sidebar{width:var(--sidebar);min-width:var(--sidebar);height:100vh;background:var(--sidebar-bg);display:flex;flex-direction:column;padding:40px 0 28px;position:fixed;left:0;top:0;z-index:50}.sb-name{padding:0 28px 28px;border-bottom:1px solid rgba(255,255,255,.1)}.sb-name h1{font-family:var(--ffd);font-size:21px;font-weight:700;color:#fff;line-height:1.2}.sb-name p{font-size:10px;font-weight:400;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.38);margin-top:5px}.sb-nav{flex:1;padding:20px 0;list-style:none}.sb-nav a{display:flex;align-items:center;gap:12px;padding:11px 28px;font-size:13px;color:rgba(255,255,255,.48);text-decoration:none;border-left:3px solid transparent;transition:color .2s,border-color .2s,background .2s}.sb-nav a:hover{color:#fff;background:rgba(255,255,255,.05)}.sb-nav a.active{color:#fff;border-left-color:var(--accent2);background:rgba(255,255,255,.07)}.nav-num{font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--accent2);width:18px;flex-shrink:0}.sb-foot{padding:20px 28px 0;border-top:1px solid rgba(255,255,255,.1);font-size:10.5px;color:rgba(255,255,255,.22)}.sb-social{padding:16px 28px 0;display:flex;gap:12px}.sb-icon{width:32px;height:32px;border-radius:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.5);text-decoration:none;transition:background .2s,color .2s}.sb-icon:hover{background:var(--accent);color:#fff;border-color:var(--accent)}#main{margin-left:var(--sidebar);width:calc(100% - var(--sidebar));height:100vh;overflow:hidden;position:relative}.page{position:absolute;inset:0;overflow-y:auto;padding:40px 60px 48px;opacity:0;pointer-events:none;transform:translateY(14px);transition:opacity .3s ease,transform .3s ease}.page.active{opacity:1;pointer-events:all;transform:none}.ph{margin-bottom:36px}.eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}.ptitle{font-family:var(--ffd);font-size:clamp(32px,3.8vw,46px);font-weight:700;line-height:1.1;color:var(--ink)}.psub{margin-top:10px;font-size:17px;font-weight:300;color:var(--ink2);max-width:560px;line-height:1.75}.pnav{display:flex;justify-content:space-between;margin-top:48px;padding-top:24px;border-top:1.5px solid var(--border)}.pnav-btn{display:flex;align-items:center;gap:8px;background:none;border:2px solid var(--border);border-radius:8px;padding:10px 20px;font-family:var(--ffb);font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink2);cursor:pointer;transition:border-color .2s,color .2s,background .2s}.pnav-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--surface)}.pnav-btn.ghost{visibility:hidden}.home-grid{display:grid;grid-template-columns:320px 1fr;gap:48px;align-items:center;max-width:900px;margin:0 auto;width:100%;}.home-photo{width:100%;aspect-ratio:3/4;background:var(--surface);border-radius:12px;border:1.5px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--ink3);overflow:hidden;}.home-photo span{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}.home-photo img{width:100%;height:100%;object-fit:cover;border-radius:10px;}.hname{font-family:var(--ffd);font-size:clamp(42px,5.5vw,66px);font-weight:700;line-height:1;color:var(--ink);margin-bottom:6px}.hrole{font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);margin-bottom:22px}.hbio{font-size:17px;font-weight:400;line-height:1.8;color:var(--ink2);max-width:520px;margin-bottom:24px}.stat-row{display:flex;border:1.5px solid var(--border);border-radius:10px;overflow:hidden}.stat{flex:1;padding:16px;border-right:1.5px solid var(--border);text-align:center;background:var(--surface)}.stat:last-child{border-right:none}.stat-val{font-family:var(--ffd);font-size:22px;font-weight:700;color:var(--accent);line-height:1;margin-bottom:4px}.stat-lbl{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}.hl-row{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-bottom:0}.hl-card{padding:22px 20px;background:var(--bg);border:none;border-right:1.5px solid var(--border);border-bottom:1.5px solid var(--border);display:flex;flex-direction:column;gap:6px}.hl-card:nth-child(even){border-right:none}.hl-card:nth-child(3),.hl-card:nth-child(4){border-bottom:none}.hl-lbl{font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:2px}.hl-lbl.award{color:var(--gold)}.hl-lbl.grant{color:var(--green)}.hl-lbl.launch{color:var(--accent)}.hl-amount{font-family:var(--ffd);font-size:24px;font-weight:700;line-height:1;color:var(--accent)}.hl-title{font-size:13px;font-weight:700;color:var(--ink);line-height:1.3;margin-bottom:2px}.hl-desc{font-size:12.5px;color:var(--ink2);line-height:1.6}.job{margin-bottom:16px}.job-hd{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:20px 26px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px 10px 0 0;border-bottom:none}.job-co{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:3px}.job-role{font-family:var(--ffd);font-size:19px;font-weight:700;color:var(--ink)}.job-dates{font-size:12px;color:var(--ink3);white-space:nowrap;flex-shrink:0}.job-body{padding:18px 26px 22px;border:1.5px solid var(--border);border-radius:0 0 10px 10px;border-top:none}.job-bullets{list-style:none;display:flex;flex-direction:column;gap:8px}.job-bullets li{font-size:15px;color:var(--ink2);line-height:1.65;padding-left:18px;position:relative}.job-bullets li::before{content:'';position:absolute;left:0;top:9px;width:6px;height:6px;border-radius:50%;background:var(--accent2)}.skills-card{margin-top:18px;padding:22px 26px;border:1.5px solid var(--border);border-radius:10px}.skills-lbl{font-size:10.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--ink3);margin-bottom:12px}.skills-grid{display:flex;flex-wrap:wrap;gap:8px}.skill-tag{padding:5px 13px;background:var(--surface);border:1.5px solid var(--border);border-radius:6px;font-size:13px;color:var(--ink2)}.scroll-hint{display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}.vplaylist{display:flex;gap:28px;overflow-x:auto;padding-bottom:14px;margin:0 -60px;padding-left:60px;padding-right:60px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:var(--border) transparent;cursor:grab}.vplaylist:active{cursor:grabbing}.vplaylist::-webkit-scrollbar{height:4px}.vplaylist::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}.vcard{flex:0 0 760px;scroll-snap-align:start;background:var(--bg);border:1.5px solid var(--border);border-radius:12px;overflow:hidden;transition:transform .2s,box-shadow .2s}.vcard:hover{transform:translateY(-4px);box-shadow:0 10px 28px rgba(61,82,213,.13)}.vthumb{width:100%;aspect-ratio:16/9;background:var(--surface);display:flex;align-items:center;justify-content:center;position:relative}.play-btn{width:46px;height:46px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(61,82,213,.35);transition:transform .2s,background .2s}.vcard:hover .play-btn{transform:scale(1.1);background:var(--accent2)}.play-btn svg{margin-left:3px}.vbadge{position:absolute;top:10px;left:10px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#fff;padding:3px 8px;border-radius:4px}.bg{background:var(--gold)}.bs{background:var(--ink3)}.vinfo{padding:15px 17px 17px}.vtag{font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}.vtitle{font-family:var(--ffd);font-size:16px;font-weight:700;line-height:1.3;color:var(--ink);margin-bottom:6px}.vdesc{font-size:13px;color:var(--ink3);line-height:1.6}.ws-active-list{display:flex;flex-direction:column;gap:16px;margin-bottom:36px}.ws-active-card{background:var(--bg);border:1.5px solid var(--border);border-radius:12px;overflow:hidden}.ws-active-card-top{display:flex;align-items:center;gap:20px;padding:24px 28px;border-bottom:1.5px solid var(--border);background:var(--surface)}.ws-badge{width:88px;height:88px;flex-shrink:0;display:flex;align-items:center;justify-content:center}.ws-active-meta{flex:1;min-width:0}.ws-active-title{font-family:var(--ffd);font-size:20px;font-weight:700;color:var(--ink);line-height:1.2;margin-bottom:5px}.ws-active-dates{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}.ws-active-body{padding:20px 28px}.ws-active-desc{font-size:15px;color:var(--ink2);line-height:1.75}.ws-active-collab{font-size:13px;color:var(--ink3);margin-top:8px}.ws-active-review{margin-top:16px;padding-left:16px;border-left:3px solid var(--border);}.ws-active-review-text{font-size:14px;font-style:italic;font-weight:700;color:var(--ink2);line-height:1.65;margin-bottom:5px}.ws-active-review-src{font-size:11px;font-weight:700;color:var(--ink3)}.ws-archive-label{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px;padding-bottom:10px;border-bottom:1.5px solid var(--border)}.ws-archive-list{display:flex;flex-direction:column;gap:0}.ws-archive-item{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:14px 0;border-bottom:1px solid var(--border)}.ws-archive-item:last-child{border-bottom:none}.ws-archive-title{font-size:15px;font-weight:700;color:var(--ink2)}.ws-archive-dates{font-size:11px;color:var(--ink3);white-space:nowrap;flex-shrink:0}.ws-archive-collab{font-size:12px;color:var(--ink3);margin-top:2px}.reviews-card{margin-top:28px;border:1.5px solid var(--border);border-radius:12px;overflow:hidden}.reviews-card-head{padding:14px 24px;background:var(--accent);display:flex;align-items:center;justify-content:space-between}.reviews-card-head span{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#fff}.rv-carousel{position:relative;overflow:hidden;background:var(--bg)}.rv-track{display:flex;transition:transform .35s ease}.rv-slide{flex:0 0 100%;padding:28px 30px;box-sizing:border-box}.rv-quote{font-size:16px;color:var(--ink2);line-height:1.8;margin-bottom:16px;font-style:italic}.rv-meta{display:flex;flex-direction:column;gap:3px}.rv-workshop{font-size:12px;font-weight:700;letter-spacing:.05em;color:var(--accent)}.rv-source{font-size:12px;color:var(--ink3)}.rv-controls{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-top:1.5px solid var(--border);background:var(--bg)}.rv-btns{display:flex;gap:8px}.rv-btn{width:34px;height:34px;border-radius:7px;border:1.5px solid var(--border);background:var(--bg);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:var(--ink2);transition:border-color .2s,color .2s,background .2s}.rv-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--surface)}.rv-btn:disabled{opacity:.3;cursor:default;pointer-events:none}.rv-dots{display:flex;gap:6px;align-items:center}.rv-dot{width:7px;height:7px;border-radius:50%;background:var(--border);border:none;cursor:pointer;transition:background .2s,transform .2s}.rv-dot.active{background:var(--accent);transform:scale(1.3)}.rv-count{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--ink3)}.blog-list{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.bp{display:flex;flex-direction:column;background:var(--bg);border:1.5px solid var(--border);border-radius:12px;overflow:hidden;text-decoration:none;color:inherit;transition:transform .2s,box-shadow .2s}
+.bp:hover{transform:translateY(-3px);box-shadow:0 10px 28px rgba(0,0,0,0.08)}
+.bp-thumb{width:100%;aspect-ratio:16/9;background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--ink3);flex-shrink:0;overflow:hidden;position:relative}
+.bp-thumb img{width:100%;height:100%;object-fit:cover}
+.bp-thumb-placeholder{display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--ink3)}
+.bp-thumb-placeholder span{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.bp-info{padding:18px 20px 20px;display:flex;flex-direction:column;flex:1}
+.bp-date{font-size:11px;font-weight:700;letter-spacing:.07em;color:var(--ink3);margin-bottom:6px}
+.bp-title{font-family:var(--ffd);font-size:17px;font-weight:700;color:var(--ink);line-height:1.3;flex:1;margin-bottom:12px}
+.bp-footer{display:flex;align-items:center;justify-content:space-between}
+.bp-tag{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:3px 8px}
+.bp-arr{font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);transition:gap .15s}
+.bp:hover .bp-arr{letter-spacing:.1em}
+@media(max-width:768px){.ct-two-col{grid-template-columns:1fr!important;}.blog-list{grid-template-columns:1fr}}.ct-wrap{max-width:520px}.ct-top{background:var(--accent);padding:32px 32px 28px;border-radius:12px 12px 0 0;border:1.5px solid var(--accent)}.ct-top h2{font-family:var(--ffd);font-size:30px;font-weight:700;color:#fff;line-height:1.1;margin-bottom:8px}.ct-top p{font-size:15px;color:rgba(255,255,255,.7);line-height:1.7}.ct-links{border:1.5px solid var(--border);border-top:none;border-radius:0 0 12px 12px;overflow:hidden}.ct-row{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;background:var(--bg);border-bottom:1px solid var(--border);text-decoration:none;color:var(--ink);transition:background .15s}.ct-row:last-child{border-bottom:none}.ct-row:hover{background:var(--surface)}.ct-lbl{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:2px}.ct-val{font-size:16px;color:var(--ink)}.ct-row:hover .ct-val{color:var(--accent)}.ct-arr{font-size:17px;color:var(--border);transition:color .15s,transform .15s}.ct-row:hover .ct-arr{color:var(--accent);transform:translateX(4px)}.form-lbl{display:block;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px}.form-input{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--ffb);font-size:15px;color:var(--ink);background:var(--bg);outline:none;transition:border-color .2s;display:block}.form-input:focus{border-color:var(--accent)}.form-submit{width:100%;padding:13px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:var(--ffb);font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:background .2s}.form-submit:hover{background:var(--accent2)}.form-grid{grid-template-columns:1fr 1fr;}
+@media(max-width:768px){
+  html,body{height:auto;overflow:auto;}
+  #menuToggle{display:flex!important;}
+  #sidebar{position:fixed;left:-240px;width:240px;min-width:240px;height:100vh;z-index:150;transition:left .25s ease;}
+  #sidebar.open{left:0;}
+  #menuOverlay.open{display:block!important;}
+  #main{margin-left:0;width:100%;height:auto;overflow:visible;}
+  .page{position:relative;inset:auto;overflow:visible;padding:64px 20px 60px;opacity:1;pointer-events:all;transform:none;display:none;transition:none;}
+  .page.active{display:block;}
+  .home-hero{grid-template-columns:1fr;height:auto;}.home-hero-photo{height:280px;}.home-hero-content{padding:28px 20px;gap:24px;}
+  
+  .stat-row{flex-wrap:wrap;}
+  .stat{flex:1 1 40%;border-bottom:1.5px solid var(--border);}
+  .hl-row{grid-template-columns:1fr;}
+  .hl-card{border-right:1.5px solid var(--border)!important;border-bottom:none!important;border-radius:0!important;}
+  .hl-card:first-child{border-radius:0 0 0 0!important;}
+  .hl-card:last-child{border-bottom:1.5px solid var(--border)!important;}
+  .job-hd{flex-direction:column;gap:4px;}
+  .job-dates{margin-top:2px;}
+  .skills-grid{gap:6px;}
+  .vplaylist{margin:0 -20px;padding-left:20px;padding-right:20px;}
+  .vcard{flex:0 0 320px;}
+  .ws-list .ws-item-top{flex-direction:column;gap:4px;}
+  .ws-item-dates{white-space:normal;}
+  .rv-masonry{grid-template-columns:1fr;}.form-grid{grid-template-columns:1fr;}
+  .blog-post{gap:12px;padding:16px 18px;}
+  .bp-date{width:auto;}
+  .pnav{flex-direction:column;gap:10px;align-items:stretch;}
+  .pnav-btn{justify-content:center;}
+  .pnav-btn.ghost{display:none;}
+  .ct-wrap{max-width:100%;}
+  .ct-top{padding:24px 20px 20px;}
+  .ct-links .ct-row{padding:16px 20px;}
+  form .grid-2{grid-template-columns:1fr!important;}
+}
+@media(max-width:480px){
+  .page{padding:56px 14px 48px;}
+  .hname{font-size:44px;}
+  .stat-row{flex-wrap:wrap;}
+  .stat{flex:1 1 45%;}
+  .vcard{flex:0 0 240px;}
+}
 </style>
-</head>
-<body>
-
-<div id="app">
-
-  <!-- ROLE PICKER -->
-  <div id="screen-role" class="screen active">
+</head><body><aside id="sidebar"><div class="sb-name"><h1>Kira Wright</h1><p>Media Production</p></div><ul class="sb-nav" id="sbNav"><li><a href="#" data-page="home" class="active"><span class="nav-num">00</span>Home</a></li><li><a href="#" data-page="experience"><span class="nav-num">01</span>Experience</a></li><li><a href="#" data-page="workshops"><span class="nav-num">02</span>Workshops</a></li><li><a href="#" data-page="blog"><span class="nav-num">03</span>Writing</a></li><li><a href="#" data-page="contact"><span class="nav-num">04</span>Contact</a></li></ul><div class="sb-social"><a href="https://www.linkedin.com/in/kira-wright-840b95aa" target="_blank" class="sb-icon" title="LinkedIn"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z"/><circle cx="4" cy="4" r="2"/></svg></a></div><div class="sb-foot">&copy; <span id="cpyear">2025</span> Kira Wright</div></aside><button id="menuToggle" aria-label="Open menu" style="display:none;position:fixed;top:16px;left:16px;z-index:200;width:40px;height:40px;border-radius:8px;border:none;background:var(--sidebar-bg);color:#fff;font-size:20px;cursor:pointer;align-items:center;justify-content:center;">&#9776;</button>
+<div id="menuOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:99;"></div>
+<main id="main"><!-- HOME --><section class="page active" id="page-home">
+  <div class="home-grid">
+    <div class="home-photo">
+      <img src="images/headshot.jpg" alt="Kira Wright">
+    </div>
     <div>
-      <div class="kicker">Game Show Counter</div>
-      <h1>Choose this device's role</h1>
-    </div>
-    <div class="role-grid">
-      <div class="role-btn" data-role="1"><div class="dot" style="background:var(--c1)"></div>Contestant 1</div>
-      <div class="role-btn" data-role="2"><div class="dot" style="background:var(--c2)"></div>Contestant 2</div>
-      <div class="role-btn" data-role="3"><div class="dot" style="background:var(--c3)"></div>Contestant 3</div>
-      <div class="role-btn scorekeeper" data-role="scorekeeper">Scorekeeper (this phone)</div>
+      <div class="hname">Kira Wright</div>
+      <div class="hrole">Media Production Manager</div>
+      <p class="hbio">I&#39;m a news producer turned educator whose joy comes from making complicated material accessible to all audiences. Whether writing Emmy-winning scripts, producing educational videos, or supporting grants, I am at my best when I am empowering others to tell their stories.</p>
+      <div class="stat-row">
+        <div class="stat"><div class="stat-val">&#9733; NW</div><div class="stat-lbl">Emmy Winner</div></div>
+        
+        <div class="stat"><div class="stat-val">10+</div><div class="stat-lbl">Years in Media</div></div>
+        <div class="stat"><div class="stat-val">$2.4M</div><div class="stat-lbl">Grants Supported</div></div>
+      </div>
     </div>
   </div>
 
-  <!-- CONTESTANT DISPLAY -->
-  <div id="screen-display" class="screen">
-    <div id="d-name" class="display-font">Contestant</div>
-    <div id="d-score" class="display-font">0</div>
-    <div id="d-connecting">Connecting…</div>
-    <div class="corner-tap" id="d-corner">⋯</div>
+  <div style="margin-top:28px;">
+    <div style="font-size:15px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:14px;">Productions</div>
+    <div class="scroll-hint"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M15 8l4 4-4 4"/></svg> Scroll to browse all videos </div>
+    <div class="vplaylist" id="vpl" style="margin-left:0;margin-right:0;padding-left:0;padding-right:20px;"><div class="vcard"><div class="vthumb" style="padding:0;background:#000;"><iframe src="https://player.vimeo.com/video/1166801400?title=0&amp;byline=0&amp;portrait=0" style="width:100%;height:100%;border:none;display:block;" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div><div class="vinfo"><div class="vtag">Texas State &middot; Promo</div><div class="vtitle">ALIAS Virtual Production Studio</div><div class="vdesc">Wrote the script and managed all aspects &mdash; storyboarding to motion graphics &mdash; for TXST&rsquo;s ALIAS Virtual Production Studio promo.</div></div></div><div class="vcard"><div class="vthumb" style="padding:0;background:#000;"><iframe src="https://player.vimeo.com/video/619065815?title=0&amp;byline=0&amp;portrait=0" style="width:100%;height:100%;border:none;display:block;" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div><div class="vinfo"><div class="vtag">Alkek One &middot; Promo</div><div class="vtitle">Alkek One 2021 Promo</div><div class="vdesc">Wrote, shot and edited this short promotional video for Alkek One, Texas State University Library&rsquo;s newest technology hub.</div></div></div><div class="vcard"><div class="vthumb" style="padding:0;background:#000;"><iframe src="https://www.youtube.com/embed/PSD7yz0mFgs" style="width:100%;height:100%;border:none;display:block;" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div><div class="vinfo"><div class="vtag">Alkek One &middot; Feature</div><div class="vtitle">Newton&rsquo;s Bucket</div><div class="vdesc">Shot and edited this feature video about Alkek One&rsquo;s Makerspace Supervisor and their unique creation.</div></div></div><div class="vcard"><div class="vthumb" style="padding:0;background:#000;"><iframe src="https://www.youtube.com/embed/PdyJ_66pOyI" style="width:100%;height:100%;border:none;display:block;" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div><div class="vinfo"><div class="vtag">KPTV &middot; Segment</div><div class="vtitle">Scott&rsquo;s Cheap Flights &mdash; Travel Tips</div><div class="vdesc">Developed a biweekly travel tips segment with Scott&rsquo;s Cheap Flights founder Scott Keyes for MORE Good Day Oregon.</div></div></div><div class="vcard"><div class="vthumb" style="padding:0;background:#000;"><span class="vbadge bg">&#9733; Emmy Winner</span><iframe src="https://www.youtube.com/embed/c-GKJgGcwds" style="width:100%;height:100%;border:none;display:block;" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div><div class="vinfo"><div class="vtag">KPTV &middot; Emmy Award</div><div class="vtitle">2018 NW Emmy &mdash; Best Morning Newscast</div><div class="vdesc">Lead producer on the hour of Good Day Oregon that won the NW Emmy for Best Morning/Daytime Newscast.</div></div></div><div class="vcard"><div class="vthumb" style="padding:0;background:#000;"><span class="vbadge bs">&#9733; Emmy Nominee</span><iframe src="https://www.youtube.com/embed/SDALNqCs_cI" style="width:100%;height:100%;border:none;display:block;" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div><div class="vinfo"><div class="vtag">KPTV &middot; Emmy Nominee</div><div class="vtitle">2018 NW Emmy &mdash; Best Evening Newscast</div><div class="vdesc">Lead producer on this evening newscast nominated for the NW Emmy for Best Evening Newscast.</div></div></div></div>
+  </div>
+  <div class="pnav" style="margin-top:28px;max-width:900px;width:100%;margin-left:auto;margin-right:auto;">
+    <button class="pnav-btn ghost" disabled></button>
+    <button class="pnav-btn" data-to="experience">Experience &rarr;</button>
+  </div>
+</section>
+<!-- EXPERIENCE -->
+<section class="page" id="page-experience">
+<div class="ph"><div class="eyebrow">01 &mdash; Experience</div><div class="ptitle">Career History</div>
+<p class="psub">From breaking news to building the next generation of media creators.</p></div><div style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px;"><div style="padding:14px 20px;background:var(--accent);border-bottom:1.5px solid var(--accent);"><span style="font-family:var(--ffd);font-size:16px;font-weight:700;color:#fff;letter-spacing:.01em;">Highlights</span></div><div class="hl-row" style="margin-bottom:0;border:none;">
+<div class="hl-card">
+  
+  <div class="hl-amount">$1.9M</div>
+  <div class="hl-title">Expressive STEM Centers (ESC) Research Collective</div>
+  <div class="hl-desc">Currently designing a micro-credential program for participants and trainers. This National Science Foundation-funded initiative is connecting families, students and educators through informal STEM learning and creative confidence.</div>
+</div>
+<div class="hl-card">
+  
+  <div class="hl-amount">$500K</div>
+  <div class="hl-title">Alkek Foundation Grant</div>
+  <div class="hl-desc">Outlined an audio and virtual video production studio expansion that earned a $500,000 Alkek Foundation grant for implementation.</div>
+</div>
+<div class="hl-card">
+  
+  <div class="hl-amount" style="font-size:17px;padding-top:2px;">Studios Launched</div>
+  <div class="hl-title">ALIAS Virtual Production &amp; Audio Studios</div>
+  <div class="hl-desc">Launched AVPS &mdash; the first virtual production studio of its kind at any Texas university. Also opened AMP Studios for music recording and immersive audio.</div>
+  <div class="hl-desc" style="margin-top:6px;"><strong>YouStar Studios</strong><br>Outfitted audio and video studios, managed content marketing strategy and designed and implemented workshops for the 2020 Alkek One launch.</div>
+</div>
+<div class="hl-card">
+  
+  <div class="hl-amount" style="font-size:17px;padding-top:2px;">NW Emmy</div>
+  <div class="hl-title">Best Morning/Daytime Newscast 2018</div>
+  <div class="hl-desc">Lead producer on the award-winning broadcast of Good Day Oregon at KPTV.</div>
+</div>
+</div></div>
+<div class="job"><div class="job-hd"><div><div class="job-co">Texas State University</div><div class="job-role">Head of Media Engagement</div></div><div class="job-dates">Oct. 2025 &ndash; Present</div></div><div class="job-body"><ul class="job-bullets"><li>Lead all media production, direction and editing for the Creative Technologies &amp; Media Engagement (CTME) program</li><li>Manage all productions, workshops, events, budgets and promotional material for CTME</li><li>Supervise Graphic Designer, Video Specialist and student employees</li><li>Launched and manages social media presence for CTME from the ground up, including Instagram (<a href="https://www.instagram.com/txstcreativetech/" target="_blank" style="color:var(--accent);text-decoration:none;">@txstcreativetech</a>) and YouTube (<a href="https://www.youtube.com/@txstacademicinnovation" target="_blank" style="color:var(--accent);text-decoration:none;">@txstacademicinnovation</a>), both launched in January 2025</li>
+          <li>Produce and publish a full range of content including short-form video (Reels), long-form video, graphics, photography and written captions covering AVPS, AMP Studios, YouStar, MakerSpace, DesignSpace, Print Shop, and Immersion spaces</li>
+          <li>Develop and execute content strategy across both platforms to grow awareness of CTME programs and services</li><li>Manage content calendar and supervise student employees who assist with content creation</li><li>Conduct individual consultations with faculty and staff to implement video and audio into curriculum</li><li>Launched ALIAS Virtual Production Studios &mdash; the first virtual production studio of its kind at any university in Texas, featuring 30-foot LED panels, a 6K camera, Unreal Engine 3D set design and cinema-quality audio and lighting</li><li>Launched ALIAS Audio &amp; Music Production (AMP) Studios, now available to all students, faculty and staff for music recording and immersive audio projects</li></ul></div></div><div class="job"><div class="job-hd"><div><div class="job-co">Texas State University</div><div class="job-role">YouStar Studio Supervisor / Instructional Media Supervisor</div></div><div class="job-dates">March 2020 &ndash; Oct. 2025</div></div><div class="job-body"><ul class="job-bullets"><li>Managed YouStar Studios productions, spaces, equipment, workshops, events, budgets and promotional material</li><li>Produced, directed and edited Alkek One&rsquo;s educational and promotional videos on traditional and virtual sets</li><li>Created and taught NASA micro-credential workshops about audio and video production for students, faculty and staff four times per year</li><li>Created asynchronous training for video and audio production hardware and software</li><li>Conducted individual consultations with faculty and staff to implement video and audio into curriculum</li><li>Supervised and trained Graphic Designer, Audio Specialist and student employees</li><li>Major achievements: launch of virtual production studio powered by Unreal Engine; creation of two four-part audio and video production micro-crederag or scroll to browse.</p></div><div class="scroll-hint"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M15 8l4 4-4 4"/></svg> Scroll to browse all videos </div><div class="vplaylist" id="vpl" style="margin-left:0;margin-right:0;padding-left:0;padding-right:20px;"><div class="vcard"><div class="vthumb" style="padding:0;background:#000;"><iframe src="https://player.vimeo.com/video/1166801400?title=0&amp;byline=0&amp;portrait=0" style="width:100%;height:100%;border:none;display:block;" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div><div class="vinfo"><div class="vtag">Texas State &middot; Promo</div><div class="vtitle">ALIAS Virtual Production Studio</div><div class="vdesc">Wrote the script and managed all aspects &mdash; storyboarding to motion graphics &mdash; for TXST&rsquo;s ALIAS Virtual Production Studio promo.</div></div></div><div class="vcard"><div class="vthumb" style="padding:0;background:#000;"><iframe src="https://player.vimeo.com/video/619065815?title=0&amp;byline=0&amp;portrait=0" style="width:100%;height:100%;border:none;display:block;" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div><div class="vinfo"><div class="vtag">Alkek One &middot; Promo</div><div class="vtitle">Alkek One 2021 Promo</div><div class="vdesc">Wrote, shot and edited this short promotional video for Alkek One, Texas State University Library&rsquo;s newest technology hub.</div></div></div><div class="vcard"><div class="vthumb" style="padding:0;background:#000;"><iframe src="https://www.youtube.com/embed/PSD7yz0mFgs" style="width:100%;height:100%;border:none;display:block;" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div><div class="vinfo"><div class="vtag">Alkek One &middot; Feature</div><div class="vtitle">Newton&rsquo;s Bucket</div><div class="vdesc">Shot and edited this feature video about Alkek One&rsquo;s Makerspace Supervisor and their unique creation.</div></div></div><div class="vcard"><div class="vthumb" style="padding:0;background:#000;"><iframe src="https://www.youtube.com/embed/PdyJ_66pOyI" style="width:100%;height:100%;border:none;display:block;" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div><div class="vinfo"><div class="vtag">KPTV &middot; Segment</div><div class="vtitle">Scott&rsquo;s Cheap Flights &mdash; Travel Tips</div><div class="vdesc">Developed a biweekly travel tips segment with Scott&rsquo;s Cheap Flights founder Scott Keyes for MORE Good Day Oregon.</div></div></div><div class="vcard"><div class="vthumb" style="padding:0;background:#000;"><span class="vbadge bg">&#9733; Emmy Winner</span><iframe src="https://www.youtube.com/embed/c-GKJgGcwds" style="width:100%;height:100%;border:none;display:block;" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div><div class="vinfo"><div class="vtag">KPTV &middot; Emmy Award</div><div class="vtitle">2018 NW Emmy &mdash; Best Morning Newscast</div><div class="vdesc">Lead producer on the hour of Good Day Oregon that won the NW Emmy for Best Morning/Daytime Newscast.</div></div></div><div class="vcard"><div class="vthumb" style="padding:0;background:#000;"><span class="vbadge bs">&#9733; Emmy Nominee</span><iframe src="https://www.youtube.com/embed/SDALNqCs_cI" style="width:100%;height:100%;border:none;display:block;" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div><div class="vinfo"><div class="vtag">KPTV &middot; Emmy Nominee</div><div class="vtitle">2018 NW Emmy &mdash; Best Evening Newscast</div><div class="vdesc">Lead producer on this evening newscast nominated for the NW Emmy for Best Evening Newscast.</div></div></div></div><div class="pnav"><button class="pnav-btn" data-to="experience">&larr; Experience</button><button class="pnav-btn" data-to="workshops">Workshops &rarr;</button></div></section><!-- WORKSHOPS --><section class="page" id="page-workshops">
+<div class="ph"><div class="eyebrow">02 &mdash; Workshops</div><div class="ptitle">Workshop History</div><p class="psub">Hands-on media production workshops for students, educators and professionals.</p></div>
+
+<div class="ws-active-list">
+
+  <div class="ws-active-card">
+    <div class="ws-active-card-top">
+      <div class="ws-badge"><img src="images/badge-av-editing.png" alt="Audio and Video Editing Badge" style="width:88px;height:88px;object-fit:contain;"></div>
+      <div class="ws-active-meta">
+        <div class="ws-active-title">Alkek One Micro-Credential: Introduction to Video and Audio Editing</div>
+        <div class="ws-active-dates">Oct. 2022 &ndash; Present</div>
+      </div>
+    </div>
+    <div class="ws-active-body">
+      <div class="ws-active-desc">Learn to edit video and audio, including making cuts, generating graphics, replacing a green screen and enhancing audio quality in Premiere Rush and Premiere Pro. No experience required for this immersive five-day workshop.</div>
+      <div class="ws-active-review">
+        <div class="ws-active-review-text">&ldquo;Thank you for all your help and guidance with the course. I hope that you have some other similar workshops down the line, would be very interested in learning more!&rdquo;</div>
+      </div>
+      <div class="ws-active-review">
+        <div class="ws-active-review-text">&ldquo;The instructor was very helpful, kind, thorough, receptive to questions and feedback, and made sure the class was paced appropriately.... I was able to apply my new skills of the software this week at work. I would definitely attend a workshop with Kira Wright again and would recommend their instruction to friends.&rdquo;</div>
+      </div>
+    </div>
   </div>
 
-  <!-- SCOREKEEPER CONTROLLER -->
-  <div id="screen-controller" class="screen">
-    <div id="ctl-header">
-      <div class="kicker">Scorekeeper</div>
-      <div class="role-change" id="ctl-role-change">change role</div>
+  <div class="ws-active-card">
+    <div class="ws-active-card-top">
+      <div class="ws-badge"><img src="images/badge-podcast.png" alt="Make Your Own Podcast Badge" style="width:88px;height:88px;object-fit:contain;"></div>
+      <div class="ws-active-meta">
+        <div class="ws-active-title">Alkek One Micro-Credential: Make Your Own Podcast</div>
+        <div class="ws-active-dates">Oct. 2023 &ndash; Present</div>
+      </div>
     </div>
-    <div id="ctl-panels"></div>
-    <button id="reset-all">Reset all scores to 0</button>
+    <div class="ws-active-body">
+      <div class="ws-active-desc">Learn how to create a podcast episode using Audacity. Students develop credible research skills, effective storytelling and interviewing techniques, recording methods and audio editing basics.</div>
+    </div>
+  </div>
+
+  <div class="ws-active-card">
+    <div class="ws-active-card-top">
+      <div class="ws-badge"><img src="images/badge-av-editing.png" alt="Audio and Video Editing Badge" style="width:88px;height:88px;object-fit:contain;"></div>
+      <div class="ws-active-meta">
+        <div class="ws-active-title">STEM for All Micro-Credential: Video and Audio Editing for K-12 Educators</div>
+        <div class="ws-active-dates">June 2023 &ndash; Present</div>
+      </div>
+    </div>
+    <div class="ws-active-body">
+      <div class="ws-active-desc">Make learning engaging by creating entertaining and informative videos and podcasts. Participants learn to edit video and audio, including making cuts, generating graphics and basic audio corrections in Adobe Premiere Rush and Audacity.</div>
+      <div class="ws-active-review">
+        <div class="ws-active-review-text">&ldquo;Great instructor who was very patient and helpful. The content is extremely valuable in my position.&rdquo;</div>
+      </div>
+      <div class="ws-active-review">
+        <div class="ws-active-review-text">&ldquo;Great wealth of knowledge, conveyed very well, with a very good pace.&rdquo;</div>
+      </div>
+    </div>
   </div>
 
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<div class="ws-archive-label">Past Workshops</div>
+<div class="ws-archive-list">
+  <div class="ws-archive-item"><div class="ws-archive-title">Introduction to Video Editing</div><div class="ws-archive-dates">July 2020 &ndash; March 2022</div></div>
+  <div class="ws-archive-item"><div class="ws-archive-title">Edit Your Podcast</div><div class="ws-archive-dates">Sept. 2020 &ndash; Sept. 2022</div></div>
+  <div class="ws-archive-item"><div class="ws-archive-title">Image Manipulation</div><div class="ws-archive-dates">July 2020 &ndash; April 2022</div></div>
+  <div class="ws-archive-item"><div class="ws-archive-title">Learn the Magic Behind the Green Screen</div><div class="ws-archive-dates">March 2021 &ndash; April 2022</div></div>
+</div>
 
+<div class="pnav"><button class="pnav-btn" data-to="experience">&larr; Experience</button><button class="pnav-btn" data-to="blog">Writing &rarr;</button></div>
+</section><!-- BLOG --><section class="page" id="page-blog"><div class="ph"><div class="eyebrow">03 &mdash; Writing</div><div class="ptitle">Blog Posts</div><p class="psub">Writing about creative technology, media production, and what&rsquo;s new at Alkek One.</p></div><div class="blog-list">
+<a href="https://txstlibraries.wp.txstate.edu/2024/03/04/alkek-one-dreamscape-coming-soon/" target="_blank" class="bp">
+  <div class="bp-thumb">
+    <img src="images/blog-dreamscape.jpg" alt="Alkek One Dreamscape Coming Soon!" style="width:100%;height:100%;object-fit:cover;">
+  </div>
+  <div class="bp-info">
+    <div class="bp-date">Mar 4, 2024</div>
+    <div class="bp-title">Alkek One Dreamscape Coming Soon!</div>
+    <div class="bp-footer"><span></span><span class="bp-arr">Read &rarr;</span></div>
+  </div>
+</a>
+<a href="https://txstlibraries.wp.txstate.edu/2021/08/26/alkek-one-expands-to-round-rock-campus-library/" target="_blank" class="bp">
+  <div class="bp-thumb">
+    <img src="images/blog-round-rock.jpg" alt="Alkek One Expands to the Round Rock Campus Library" style="width:100%;height:100%;object-fit:cover;">
+  </div>
+  <div class="bp-info">
+    <div class="bp-date">Aug 27, 2021</div>
+    <div class="bp-title">Alkek One Expands to the Round Rock Campus Library</div>
+    <div class="bp-footer"><span></span><span class="bp-arr">Read &rarr;</span></div>
+  </div>
+</a>
+<a href="https://txstlibraries.wp.txstate.edu/2020/10/30/become-a-star-in-the-alkek-one-youstar-studios/" target="_blank" class="bp">
+  <div class="bp-thumb">
+    <img src="images/blog-become-star.jpg" alt="Become a Star in the Alkek One YouStar Studios" style="width:100%;height:100%;object-fit:cover;">
+  </div>
+  <div class="bp-info">
+    <div class="bp-date">Oct 30, 2020</div>
+    <div class="bp-title">Become a Star in the Alkek One YouStar Studios</div>
+    <div class="bp-footer"><span></span><span class="bp-arr">Read &rarr;</span></div>
+  </div>
+</a>
+<a href="https://drive.google.com/file/d/1C4gJmak3EsEPvWHdUFA1ah24es7B4bYR/view?usp=sharing" target="_blank" class="bp">
+  <div class="bp-thumb">
+    <img src="images/blog-newest-star.jpg" alt="The Newest Star of Alkek One: YouStar Video II" style="width:100%;height:100%;object-fit:cover;">
+  </div>
+  <div class="bp-info">
+    <div class="bp-date">Dec 14, 2020</div>
+    <div class="bp-title">The Newest Star of Alkek One: YouStar Video II</div>
+    <div class="bp-footer"><span class="bp-tag">Archived</span><span class="bp-arr">Read &rarr;</span></div>
+  </div>
+</a>
+<a href="https://drive.google.com/file/d/1sARQlc_tbqhYK1GMw9LD1AeLoRTbxGCv/view?usp=sharing" target="_blank" class="bp">
+  <div class="bp-thumb">
+    <img src="images/blog-produce-song.jpg" alt="Produce Your Own Song, No Experience Required" style="width:100%;height:100%;object-fit:cover;">
+  </div>
+  <div class="bp-info">
+    <div class="bp-date">Apr 12, 2022</div>
+    <div class="bp-title">Produce Your Own Song, No Experience Required</div>
+    <div class="bp-footer"><span class="bp-tag">Archived</span><span class="bp-arr">Read &rarr;</span></div>
+  </div>
+</a>
+<a href="https://drive.google.com/file/d/1zTPEiRuivG9dqck8v6Vl83K2IG47ahbF/view?usp=sharing" target="_blank" class="bp">
+  <div class="bp-thumb">
+    <img src="images/blog-need-hobby.jpg" alt="Need a New Hobby for 2021?" style="width:100%;height:100%;object-fit:cover;">
+  </div>
+  <div class="bp-info">
+    <div class="bp-date">Jan 20, 2021</div>
+    <div class="bp-title">Need a New Hobby for 2021? Check Out Alkek One&#39;s Workshops</div>
+    <div class="bp-footer"><span class="bp-tag">Archived</span><span class="bp-arr">Read &rarr;</span></div>
+  </div>
+</a>
+</div><div class="pnav"><button class="pnav-btn" data-to="workshops">&larr; Workshops</button><button class="pnav-btn" data-to="contact">Contact &rarr;</button></div></section><!-- CONTACT --><section class="page" id="page-contact">
+<div style="max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:20px;">
+
+  <div style="background:var(--accent);border-radius:12px;padding:32px 36px;">
+    <h2 style="font-family:var(--ffd);font-size:36px;font-weight:700;color:#fff;line-height:1.1;margin-bottom:10px;">Let&rsquo;s work together.</h2>
+    <p style="font-size:15px;color:rgba(255,255,255,.75);line-height:1.75;margin-bottom:6px;">Want to chat? Message me on LinkedIn or fill out the form below.</p>
+    <p style="font-size:14px;color:rgba(255,255,255,.6);line-height:1.75;">Based in the Austin area. Open to production projects, workshops, speaking engagements and conversations.</p>
+  </div>
+
+  <div style="border:1.5px solid var(--border);border-radius:12px;overflow:hidden;">
+    <a href="https://www.linkedin.com/in/kira-wright-840b95aa" target="_blank" class="ct-row">
+      <div><div class="ct-lbl">LinkedIn</div><div class="ct-val">linkedin.com/in/kira-wright</div></div>
+      <span class="ct-arr">&rarr;</span>
+    </a>
+  </div>
+
+  <div style="background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:32px 36px;">
+    <form id="contactForm" action="https://formspree.io/f/xpqybool" method="POST">
+      <div class="form-grid" style="display:grid;gap:16px;margin-bottom:16px;">
+        <div><label class="form-lbl">Name <span style="color:var(--accent);">*</span></label><input class="form-input" type="text" name="name" required placeholder="Your name"></div>
+        <div><label class="form-lbl">Email <span style="color:var(--accent);">*</span></label><input class="form-input" type="email" name="email" required placeholder="your@email.com"></div>
+      </div>
+      <div class="form-grid" style="display:grid;gap:16px;margin-bottom:16px;">
+        <div><label class="form-lbl">Phone <span style="color:var(--ink3);font-weight:400;">(optional)</span></label><input class="form-input" type="tel" name="phone" placeholder="(555) 000-0000"></div>
+        <div><label class="form-lbl">Subject <span style="color:var(--accent);">*</span></label><input class="form-input" type="text" name="subject" required placeholder="What&apos;s this about?"></div>
+      </div>
+      <div style="margin-bottom:20px;">
+        <label class="form-lbl">Message <span style="color:var(--accent);">*</span></label>
+        <textarea class="form-input" name="message" required placeholder="Tell me more..." style="height:160px;resize:vertical;"></textarea>
+      </div>
+      <button type="submit" class="form-submit">Send Message &rarr;</button>
+      <div id="form-success" style="display:none;margin-top:16px;padding:14px 18px;background:#e8f5e9;border:1.5px solid #a5d6a7;border-radius:8px;font-size:14px;color:#2e7d32;">Thanks! Your message has been sent. I&rsquo;ll be in touch soon.</div>
+      <div id="form-error" style="display:none;margin-top:16px;padding:14px 18px;background:#ffebee;border:1.5px solid #ef9a9a;border-radius:8px;font-size:14px;color:#c62828;">Something went wrong. Please try again or connect on LinkedIn.</div>
+    </form>
+  </div>
+
+  <div class="pnav"><button class="pnav-btn" data-to="blog">&larr; Writing</button><button class="pnav-btn ghost" disabled></button></div>
+</div>
+</section></main>
 <script>
-/* =========================================================
-   1) PASTE YOUR FIREBASE CONFIG HERE
-   (Project Settings > General > Your apps > Web app > Config)
-   ========================================================= */
-const firebaseConfig = {
-  apiKey: "AIzaSyA0b8m63LkH5E6fAWReWI5W4Msm0Qlrihw",
-  authDomain: "game-show-score.firebaseapp.com",
-  databaseURL: "https://game-show-score-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "game-show-score",
-  storageBucket: "game-show-score.firebasestorage.app",
-  messagingSenderId: "245531364126",
-  appId: "1:245531364126:web:e8c4116d6344e470c8d70f",
-  measurementId: "G-RKX036XB1N"
-};
-
-const DEFAULTS = {
-  "1": { name: "Contestant 1", score: 0, color: "#e8b23d" },
-  "2": { name: "Contestant 2", score: 0, color: "#3da0e8" },
-  "3": { name: "Contestant 3", score: 0, color: "#e8437b" }
-};
-
-let db, lastScores = {};
-
-function el(id){ return document.getElementById(id); }
-function showScreen(id){
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  el(id).classList.add('active');
-  if(id !== 'screen-display'){
-    document.documentElement.style.background = '';
-    document.body.style.background = '';
-  }
+function showPage(id){
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
+  document.querySelectorAll('#sbNav a').forEach(function(a){a.classList.remove('active')});
+  var pg=document.getElementById('page-'+id);
+  if(pg){pg.scrollTop=0;pg.classList.add('active')}
+  var lk=document.querySelector('#sbNav a[data-page="'+id+'"]');
+  if(lk)lk.classList.add('active');
 }
-
-function getForcedRole(){
-  const p = new URLSearchParams(location.search);
-  const mode = p.get('mode');
-  if(mode === 'controller') return 'scorekeeper';
-  if(mode === 'display' && p.get('id')) return p.get('id');
-  return null;
-}
-
-function getRole(){
-  return getForcedRole() || localStorage.getItem('gsRole');
-}
-
-function setRole(role){
-  localStorage.setItem('gsRole', role);
-  boot();
-}
-
-function clearRole(){
-  if(confirm('Change this device\'s role?')){
-    localStorage.removeItem('gsRole');
-    boot();
-  }
-}
-
-/* ---------- Firebase init ---------- */
-function initFirebase(){
-  if (firebase.apps.length) return;
-  firebase.initializeApp(firebaseConfig);
-}
-
-function withAuth(cb){
-  initFirebase();
-  db = firebase.database();
-  firebase.auth().onAuthStateChanged(user=>{
-    if(user){ cb(); }
-  });
-  firebase.auth().signInAnonymously().catch(err=>{
-    console.error(err);
-    const msg = 'Could not connect: ' + err.message;
-    const connectingEl = document.getElementById('d-connecting');
-    if(connectingEl) connectingEl.textContent = msg;
-    alert(msg + '\n\nCheck that your firebaseConfig is filled in and Anonymous auth is enabled.');
-  });
-}
-
-function contestantRef(id){
-  return db.ref('rooms/default/contestants/' + id);
-}
-
-/* ---------- Display screen ---------- */
-function startDisplay(id){
-  showScreen('screen-display');
-  el('d-corner').onclick = clearRole;
-  const ref = contestantRef(id);
-
-  const timeoutId = setTimeout(()=>{
-    el('d-connecting').textContent = 'Still connecting… check wifi, or tap the corner ⋯ to switch roles and try again.';
-  }, 7000);
-
-  // ensure defaults exist without clobbering existing data
-  ref.once('value').then(snap=>{
-    if(!snap.exists()) ref.set(DEFAULTS[id]);
-  }).catch(err=>{
-    el('d-connecting').textContent = 'Error: ' + err.message;
-  });
-
-  ref.on('value', snap=>{
-    clearTimeout(timeoutId);
-    const data = snap.val() || DEFAULTS[id];
-    el('d-connecting').style.display = 'none';
-    el('d-name').textContent = data.name || ('Contestant ' + id);
-    const color = data.color || DEFAULTS[id].color;
-    el('screen-display').style.background = color;
-    document.documentElement.style.background = color;
-    document.body.style.background = color;
-    const scoreEl = el('d-score');
-
-    const newScore = (typeof data.score === 'number') ? data.score : 0;
-    if(lastScores[id] !== undefined && lastScores[id] !== newScore){
-      scoreEl.classList.add('pulse');
-      setTimeout(()=>scoreEl.classList.remove('pulse'), 180);
-    }
-    lastScores[id] = newScore;
-    scoreEl.textContent = newScore;
-    fitScoreFont(scoreEl, String(newScore));
-  }, err=>{
-    clearTimeout(timeoutId);
-    el('d-connecting').style.display = 'block';
-    el('d-connecting').textContent = 'Error: ' + err.message;
-  });
-}
-
-/* ---------- Controller screen ---------- */
-function startController(){
-  showScreen('screen-controller');
-  el('ctl-role-change').onclick = clearRole;
-  el('reset-all').onclick = ()=>{
-    if(confirm('Reset all three scores to 0?')){
-      ['1','2','3'].forEach(id=> contestantRef(id).child('score').set(0));
-    }
-  };
-
-  const panels = el('ctl-panels');
-  panels.innerHTML = '';
-
-  ['1','2','3'].forEach(id=>{
-    const panel = document.createElement('div');
-    panel.className = 'panel';
-    panel.innerHTML = `
-      <div class="panel-top">
-        <div class="swatch" id="ctl-swatch-${id}"></div>
-        <input class="name-input" id="ctl-name-${id}" maxlength="20">
-        <input class="hex-input" id="ctl-hex-${id}" maxlength="7" spellcheck="false">
-      </div>
-      <div class="score-row">
-        <div class="score-num display-font" id="ctl-score-${id}">0</div>
-        <div class="btn-row">
-          <div class="step-btn" data-id="${id}" data-delta="-1">−</div>
-          <div class="step-btn" data-id="${id}" data-delta="1">+</div>
-        </div>
-      </div>
-      <div class="custom-row">
-        <input class="custom-input" id="ctl-custom-${id}" type="number" inputmode="numeric" placeholder="Add points, e.g. 5 or -5">
-        <div class="custom-add-btn" data-id="${id}">Add</div>
-      </div>
-    `;
-    panels.appendChild(panel);
-
-    const ref = contestantRef(id);
-    ref.once('value').then(snap=>{
-      if(!snap.exists()) ref.set(DEFAULTS[id]);
-    });
-
-    ref.on('value', snap=>{
-      const data = snap.val() || DEFAULTS[id];
-      const nameInput = el('ctl-name-' + id);
-      const hexInput = el('ctl-hex-' + id);
-      // don't stomp on text the user is actively typing
-      if(document.activeElement !== nameInput) nameInput.value = data.name || '';
-      if(document.activeElement !== hexInput) hexInput.value = data.color || DEFAULTS[id].color;
-      el('ctl-swatch-' + id).style.background = data.color || DEFAULTS[id].color;
-      el('ctl-score-' + id).textContent = (typeof data.score === 'number') ? data.score : 0;
-    });
-
-    el('ctl-name-' + id).addEventListener('change', e=>{
-      ref.child('name').set(e.target.value || DEFAULTS[id].name);
-    });
-
-    el('ctl-hex-' + id).addEventListener('change', e=>{
-      let v = e.target.value.trim();
-      if(!v.startsWith('#')) v = '#' + v;
-      if(!/^#[0-9A-Fa-f]{6}$/.test(v)){
-        alert('Enter a 6-digit hex code, like #E8437B');
-        e.target.value = lastKnownHex(id);
-        return;
-      }
-      ref.child('color').set(v);
-    });
-  });
-
-  panels.querySelectorAll('.step-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const id = btn.dataset.id;
-      const delta = parseInt(btn.dataset.delta, 10);
-      contestantRef(id).child('score').transaction(cur => (cur || 0) + delta);
-    });
-  });
-
-  function applyCustomAmount(id){
-    const input = el('ctl-custom-' + id);
-    const val = parseInt(input.value, 10);
-    if(isNaN(val)) return;
-    contestantRef(id).child('score').transaction(cur => (cur || 0) + val);
-    input.value = '';
-  }
-
-  panels.querySelectorAll('.custom-add-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=> applyCustomAmount(btn.dataset.id));
-  });
-
-  ['1','2','3'].forEach(id=>{
-    el('ctl-custom-' + id).addEventListener('keydown', e=>{
-      if(e.key === 'Enter') applyCustomAmount(id);
-    });
-  });
-}
-
-function lastKnownHex(id){ return DEFAULTS[id].color; }
-
-function fitScoreFont(scoreEl, text){
-  const digits = Math.max(text.length, 1);
-  const byHeight = window.innerHeight * 0.60;
-  const byWidth = (window.innerWidth * 0.88) / (digits * 0.64);
-  const size = Math.min(byHeight, byWidth);
-  scoreEl.style.fontSize = size + 'px';
-}
-window.addEventListener('resize', ()=>{
-  const scoreEl = document.getElementById('d-score');
-  if(scoreEl && scoreEl.textContent) fitScoreFont(scoreEl, scoreEl.textContent);
+document.querySelectorAll('#sbNav a').forEach(function(a){
+  a.addEventListener('click',function(e){e.preventDefault();showPage(a.dataset.page)});
 });
-
-/* ---------- Role picker wiring ---------- */
-document.querySelectorAll('.role-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=> setRole(btn.dataset.role));
+document.querySelectorAll('.pnav-btn[data-to]').forEach(function(b){
+  b.addEventListener('click',function(){showPage(b.dataset.to)});
 });
-
-/* ---------- Boot ---------- */
-function boot(){
-  const role = getRole();
-  if(!role){
-    showScreen('screen-role');
-    return;
-  }
-  withAuth(()=>{
-    if(role === 'scorekeeper') startController();
-    else startDisplay(role);
+// Contact form
+var cf=document.getElementById('contactForm');
+if(cf){
+  cf.addEventListener('submit',function(e){
+    e.preventDefault();
+    var btn=cf.querySelector('.form-submit');
+    btn.textContent='Sending...';
+    btn.disabled=true;
+    fetch(cf.action,{method:'POST',body:new FormData(cf),headers:{'Accept':'application/json'}})
+      .then(function(r){
+        if(r.ok){
+          document.getElementById('form-success').style.display='block';
+          cf.reset();
+        } else { document.getElementById('form-error').style.display='block'; }
+        btn.textContent='Send Message →'; btn.disabled=false;
+      })
+      .catch(function(){
+        document.getElementById('form-error').style.display='block';
+        btn.textContent='Send Message →'; btn.disabled=false;
+      });
+  });
+}
+var pl=document.getElementById('vpl');
+if(pl){
+  var dn=false,sx,sl;
+  pl.addEventListener('mousedown',function(e){dn=true;sx=e.pageX-pl.offsetLeft;sl=pl.scrollLeft});
+  pl.addEventListener('mouseleave',function(){dn=false});
+  pl.addEventListener('mouseup',function(){dn=false});
+  pl.addEventListener('mousemove',function(e){
+    if(!dn)return;e.preventDefault();
+    pl.scrollLeft=sl-(e.pageX-pl.offsetLeft-sx)*1.2;
   });
 }
 
-boot();
-</script>
-</body>
-</html>
+// Mobile menu
+var toggle = document.getElementById('menuToggle');
+var sidebar = document.getElementById('sidebar');
+var overlay = document.getElementById('menuOverlay');
+if(toggle){
+  toggle.addEventListener('click', function(){
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('open');
+    toggle.innerHTML = sidebar.classList.contains('open') ? '&#10005;' : '&#9776;';
+  });
+  overlay.addEventListener('click', function(){
+    sidebar.classList.remove('open');
+    overlay.classList.remove('open');
+    toggle.innerHTML = '&#9776;';
+  });
+  // Close menu on nav click (mobile)
+  document.querySelectorAll('#sbNav a').forEach(function(a){
+    a.addEventListener('click', function(){
+      sidebar.classList.remove('open');
+      overlay.classList.remove('open');
+      toggle.innerHTML = '&#9776;';
+    });
+  });
+}
+
+// Reviews carousel
+var rvTrack=document.getElementById('rvTrack');
+var rvDotsWrap=document.getElementById('rvDots');
+var rvCount=document.getElementById('rvCount');
+var rvPrev=document.getElementById('rvPrev');
+var rvNext=document.getElementById('rvNext');
+if(rvTrack){
+  var rvCur=0;
+  var rvTot=rvTrack.children.length;
+  for(var ri=0;ri<rvTot;ri++){
+    var d=document.createElement('button');
+    d.className='rv-dot'+(ri===0?' active':'');
+    d.dataset.i=ri;
+    d.addEventListener('click',function(){rvGo(parseInt(this.dataset.i))});
+    rvDotsWrap.appendChild(d);
+  }
+  function rvGo(n){
+    rvCur=n;
+    rvTrack.style.transform='translateX(-'+rvCur+'00%)';
+    Array.from(rvDotsWrap.children).forEach(function(d,i){d.classList.toggle('active',i===rvCur)});
+    rvCount.textContent=(rvCur+1)+' / '+rvTot;
+    rvPrev.disabled=rvCur===0;
+    rvNext.disabled=rvCur===rvTot-1;
+  }
+  rvPrev.addEventListener('click',function(){if(rvCur>0)rvGo(rvCur-1)});
+  rvNext.addEventListener('click',function(){if(rvCur<rvTot-1)rvGo(rvCur+1)});
+}
+document.getElementById('cpyear').textContent=new Date().getFullYear();
+</script></body></html>
